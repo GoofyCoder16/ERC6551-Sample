@@ -8,7 +8,7 @@ import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import "./interfaces/IERC6551Account.sol";
 import "./lib/ERC6551AccountLib.sol";
 contract walletUser is IERC165, IERC1271, IERC6551Account {
-       receive() external payable{
+receive() external payable{
                 revert PayThroughCentralPay();
     }
     fallback() external payable {

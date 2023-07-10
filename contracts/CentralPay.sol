@@ -6,19 +6,28 @@ import "./interfaces/IERC6551Registry.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 contract centralPay is ERC721URIStorage,Ownable{
-   error EUPI_Wallet_NotFound();
+
+struct profile{
+    uint256 _balance;
+    uint256 _deadline;
+    address[] _usecase;
+}
+
+
+
     error TokenID_DoesNotExist();
     error Eth_NotDeposit();
     error Not_Owner();
     error FalseAddrPair();
-    error EUPI_Wallet_Exist();
+    error EUPI_Wallet_NotFound();
     error Require_Name_TokenURI();
     error Not_Allowed();
     error invalid_tranxID();
 
-// 1883891 714926  5157285
-    event E_depositEThByAdmin(uint256[] indexed _value,string[] _name,address[] indexed useCase,uint256 indexed _timePeriod,uint256,uint256);
-    event E_withdrawEThByAdmin(uint256 indexed _id);
+   
+
+
+    event E_depositEThByAdmin(uint256[] indexed _value,string[] _name,address[] indexed useCase,uint256 indexed _timePeriod,uint256);
    
    receive () external payable onlyOwner(){}
    fallback () external payable onlyOwner(){}
@@ -30,15 +39,12 @@ contract centralPay is ERC721URIStorage,Ownable{
     uint public immutable chainId = block.chainid;
     string public s_tokenURI; // Immutable not working here
     IERC6551Registry public immutable registry; 
-    uint256 public s_id;
 
-    mapping(uint256=>uint256[]) public As_tokenIDToSalt;
-    mapping(uint256=>address[] ) public As_tokenIDTOWalletAddr;
+
     mapping(address=>mapping(uint256=>uint256)) public s_addrToTokenIDToWalletNonce;
     mapping(address =>uint256[]) public s_addrToTokenID;
-    mapping(string=>uint256) public s_NameToSalt;
     mapping(string=>address payable) public s_NametoWalletAddr;
-    mapping(uint256=>address[]) public As_tranxIDtoUseCase;
+    mapping(string=>profile) public s_nameTOprofile;
 
     constructor(address _implementation,address _registry,string memory _tokenURI) ERC721("CentralPayNFT","EUPI") payable{
         s_tokenID=0;
@@ -54,10 +60,8 @@ contract centralPay is ERC721URIStorage,Ownable{
          _safeMint(msg.sender,s_tokenID);
          _setTokenURI(s_tokenID,s_tokenURI);
          address user=createAccount(s_tokenID);
-         As_tokenIDTOWalletAddr[s_tokenID].push(user);
          s_NametoWalletAddr[_name]=payable(user);
-         s_NameToSalt[_name]=salt;
-         As_tokenIDToSalt[s_tokenID].push(salt);
+
          s_addrToTokenIDToWalletNonce[msg.sender][s_tokenID]++;
          s_addrToTokenID[msg.sender].push(s_tokenID);
          s_tokenID=s_tokenID+1;
@@ -67,15 +71,10 @@ contract centralPay is ERC721URIStorage,Ownable{
         if(ownerOf(NFTtokenID)!=msg.sender){
           revert TokenID_DoesNotExist();
         }
-           if(s_NametoWalletAddr[_name]!=address(0)){
-            revert EUPI_Wallet_Exist();
-        }
          address user=createAccount(s_tokenID);
-         As_tokenIDTOWalletAddr[s_tokenID].push(payable(user));
          s_NametoWalletAddr[_name]=payable(user);
         s_addrToTokenIDToWalletNonce[msg.sender][s_tokenID]++;
-         s_NameToSalt[_name]=salt;
-        As_tokenIDToSalt[s_tokenID].push(salt);
+
          salt=salt+1;
        
     }
@@ -104,31 +103,46 @@ contract centralPay is ERC721URIStorage,Ownable{
             revert FalseAddrPair();
         }
          for(uint256 i=0;i<_name.length;i++){
-             address payable receiver=(s_NametoWalletAddr[_name[i]]);
+             address payable receiver=payable (s_NametoWalletAddr[_name[i]]);
              (bool success,)=receiver.call{value:_value[i]}(abi.encodeWithSignature("getUseCase(address[],uint256,uint256,address)",useCase,_timePeriod,block.timestamp,msg.sender));
       if(!success){
           revert Eth_NotDeposit();
       }
+      profile memory Person=profile(address(receiver).balance,block.timestamp+_timePeriod,useCase);
+      s_nameTOprofile[_name[i]]=Person;
       
-      As_tranxIDtoUseCase[s_id]=useCase;
-      emit E_depositEThByAdmin(_value,_name,useCase,_timePeriod,block.timestamp,s_id);
-      s_id+=1;
          }
+         emit E_depositEThByAdmin(_value,_name,useCase,_timePeriod,block.timestamp);
     }
-    function withdraw(uint256 _id) external onlyOwner {
-      if(As_tranxIDtoUseCase[_id][0]==address(0)){
-          revert invalid_tranxID();
-      }
-      for(uint256 i=0;i<As_tranxIDtoUseCase[_id].length;i++){
-             address payable receiver=payable(As_tranxIDtoUseCase[_id][i]);
+    function withdraw(string[] memory _name) external onlyOwner {
+       
+      for(uint256 i=0;i<_name.length;i++){
+           if(s_NametoWalletAddr[_name[i]]==address(0)){
+            revert EUPI_Wallet_NotFound();
+        }
+        if(s_nameTOprofile[_name[i]]._balance==0){
+            revert Eth_NotDeposit();
+        }
+             address payable receiver=payable(s_NametoWalletAddr[_name[i]]);
              (bool success,)=receiver.call(abi.encodeWithSignature("withdrawEthByAdmin(address)",msg.sender));
       if(!success){
           revert Eth_NotDeposit();
       }
+      delete (s_nameTOprofile[_name[i]]._usecase);
+      s_nameTOprofile[_name[i]]._balance=0;
+      s_nameTOprofile[_name[i]]._deadline=0;
+      
          }
-      emit E_withdrawEThByAdmin(_id);
     }
-    
+    function addrToTokenID(address _addr,uint256 _index)external view returns(uint256){
+        return s_addrToTokenID[_addr][_index];
+    }
+    function addrToTokenIDToWalletNonce(address _addr,uint256 _tokenId) external view returns (uint256){
+        return s_addrToTokenIDToWalletNonce[_addr][_tokenId];
+    }
+    function nameTOprofile(string memory _name)external view returns(profile memory){
+        return s_nameTOprofile[_name];
+    }
 }
 
-    
+
