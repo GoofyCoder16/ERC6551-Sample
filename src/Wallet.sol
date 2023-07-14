@@ -6,9 +6,9 @@ import "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 
 import "./interfaces/IERC6551Account.sol";
-import "./lib/ERC6551AccountLib.sol";
+import "./libraries/ERC6551AccountLib.sol";
 
-contract walletUser is IERC165, IERC1271, IERC6551Account {
+contract WalletUser is IERC165, IERC1271, IERC6551Account {
     receive() external payable {
         revert PayThroughCentralPay();
     }

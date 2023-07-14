@@ -1,12 +1,12 @@
-// SPDX-License-Identifier:MIT
+//SPDX-License-Identifier: MIT
 pragma solidity ^0.8.18;
-import {Base64} from "./lib/base64.sol";
-import "./lib/ERC6551AccountLib.sol";
+import {Base64} from "./libraries/base64.sol";
+import "./libraries/ERC6551AccountLib.sol";
 import "./interfaces/IERC6551Registry.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract centralPay is ERC721URIStorage, Ownable {
+contract CentralPay is ERC721URIStorage, Ownable {
     struct profile {
         uint256 _balance;
         uint256 _deadline;
